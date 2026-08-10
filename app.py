@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import time
 from google import genai
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import FAISS
@@ -60,13 +61,29 @@ except Exception as e:
     st.error(f"Error loading RAG: {e}")
     st.stop()
 
-# Helper function using standard google-genai client
-def generate_email(prompt_text):
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt_text,
-    )
-    return response.text
+# Helper function with automatic retry logic for 429 rate limits
+def generate_email_with_retry(prompt_text, max_retries=3):
+    models = ["gemini-2.0-flash", "gemini-1.5-flash"]
+    
+    for model_name in models:
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt_text,
+                )
+                return response.text
+            except Exception as err:
+                err_str = str(err)
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    if attempt < max_retries - 1:
+                        # Wait 5 seconds before retrying if rate limited
+                        time.sleep(5)
+                        continue
+                # If non-quota error or out of retries, break to try next model
+                break
+                
+    raise Exception("Rate limit reached across all models. Please wait 30 seconds before clicking again.")
 
 tab1, tab2 = st.tabs(["🚀 Generate Email", "🛠️ Refine & Edit"])
 
@@ -80,7 +97,7 @@ with tab1:
 
     with col2:
         if btn and purpose and recipient:
-            with st.spinner("Generating..."):
+            with st.spinner("Generating email (handling rate limits automatically)..."):
                 try:
                     docs = retriever.invoke(f"Tone: {tone} Purpose: {purpose}")
                     context = "\n".join([d.page_content for d in docs])
@@ -91,29 +108,29 @@ with tab1:
 Write a clear, complete email to {recipient} with a '{tone}' tone.
 Purpose: {purpose}"""
                     
-                    result_text = generate_email(prompt_text)
+                    result_text = generate_email_with_retry(prompt_text)
                     st.text_area("Result", value=result_text, height=300)
                 except Exception as err:
-                    st.error(f"Gemini API Error: {err}")
+                    st.error(f"{err}")
 
 with tab2:
     text = st.text_area("Paste Email to Refine")
     c1, c2, c3 = st.columns(3)
     if c1.button("Rewrite") and text:
         try:
-            res = generate_email(f"Rewrite cleanly:\n\n{text}")
+            res = generate_email_with_retry(f"Rewrite cleanly:\n\n{text}")
             st.write(res)
         except Exception as err:
-            st.error(f"Error: {err}")
+            st.error(f"{err}")
     if c2.button("Shorten") and text:
         try:
-            res = generate_email(f"Shorten this email:\n\n{text}")
+            res = generate_email_with_retry(f"Shorten this email:\n\n{text}")
             st.write(res)
         except Exception as err:
-            st.error(f"Error: {err}")
+            st.error(f"{err}")
     if c3.button("Fix Grammar") and text:
         try:
-            res = generate_email(f"Fix grammar:\n\n{text}")
+            res = generate_email_with_retry(f"Fix grammar:\n\n{text}")
             st.write(res)
         except Exception as err:
-            st.error(f"Error: {err}")
+            st.error(f"{err}")
