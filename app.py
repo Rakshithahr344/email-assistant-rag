@@ -58,10 +58,12 @@ except Exception as e:
     st.error(f"Error loading RAG: {e}")
     st.stop()
 
-# Robust model initialization with fallback
+# Function that tries valid Gemini models and prints the exact error if it fails
 def generate_response(prompt_text, key):
-    # Try gemini-1.5-flash-latest first, fall back to gemini-pro
-    for model_name in ["gemini-1.5-flash-latest", "gemini-pro"]:
+    models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]
+    last_error = None
+    
+    for model_name in models_to_try:
         try:
             llm = ChatGoogleGenerativeAI(
                 model=model_name,
@@ -69,9 +71,11 @@ def generate_response(prompt_text, key):
                 temperature=0.3
             )
             return llm.invoke([HumanMessage(content=prompt_text)]).content
-        except Exception:
+        except Exception as e:
+            last_error = e
             continue
-    raise Exception("All Gemini models failed. Please check your API Key in Google AI Studio.")
+            
+    raise Exception(f"{last_error}")
 
 tab1, tab2 = st.tabs(["🚀 Generate Email", "🛠️ Refine & Edit"])
 
@@ -99,7 +103,7 @@ Purpose: {purpose}"""
                     result_text = generate_response(prompt_text, api_key)
                     st.text_area("Result", value=result_text, height=300)
                 except Exception as err:
-                    st.error(f"Gemini API Call Failed: {err}")
+                    st.error(f"Gemini API Error: {err}")
 
 with tab2:
     text = st.text_area("Paste Email to Refine")
