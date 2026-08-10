@@ -58,20 +58,28 @@ except Exception as e:
     st.error(f"Error loading RAG: {e}")
     st.stop()
 
-# Updated LLM configuration
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    google_api_key=api_key,
-    temperature=0.3
-)
+# Robust model initialization with fallback
+def generate_response(prompt_text, key):
+    # Try gemini-1.5-flash-latest first, fall back to gemini-pro
+    for model_name in ["gemini-1.5-flash-latest", "gemini-pro"]:
+        try:
+            llm = ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=key,
+                temperature=0.3
+            )
+            return llm.invoke([HumanMessage(content=prompt_text)]).content
+        except Exception:
+            continue
+    raise Exception("All Gemini models failed. Please check your API Key in Google AI Studio.")
 
 tab1, tab2 = st.tabs(["🚀 Generate Email", "🛠️ Refine & Edit"])
 
 with tab1:
     col1, col2 = st.columns([1, 1])
     with col1:
-        recipient = st.text_input("Recipient", placeholder="e.g., Hiring Manager")
-        purpose = st.text_area("Purpose / Key Points", placeholder="e.g., Ask for budget approval")
+        recipient = st.text_input("Recipient", placeholder="e.g., HR Manager")
+        purpose = st.text_area("Purpose / Key Points", placeholder="e.g., Requesting 2 days leave")
         tone = st.selectbox("Tone", ["Professional", "Friendly", "Formal", "Persuasive"])
         btn = st.button("Generate Email")
 
@@ -85,11 +93,11 @@ with tab1:
                     prompt_text = f"""Context:
 {context}
 
-Write a clear, complete email to {recipient} with a '{tone}' tone.
+Write a complete email to {recipient} with a '{tone}' tone.
 Purpose: {purpose}"""
                     
-                    res = llm.invoke([HumanMessage(content=prompt_text)])
-                    st.text_area("Result", value=res.content, height=300)
+                    result_text = generate_response(prompt_text, api_key)
+                    st.text_area("Result", value=result_text, height=300)
                 except Exception as err:
                     st.error(f"Gemini API Call Failed: {err}")
 
@@ -98,19 +106,19 @@ with tab2:
     c1, c2, c3 = st.columns(3)
     if c1.button("Rewrite") and text:
         try:
-            res = llm.invoke([HumanMessage(content=f"Rewrite cleanly:\n\n{text}")])
-            st.write(res.content)
+            res = generate_response(f"Rewrite cleanly:\n\n{text}", api_key)
+            st.write(res)
         except Exception as err:
             st.error(f"Error: {err}")
     if c2.button("Shorten") and text:
         try:
-            res = llm.invoke([HumanMessage(content=f"Shorten this email:\n\n{text}")])
-            st.write(res.content)
+            res = generate_response(f"Shorten this email:\n\n{text}", api_key)
+            st.write(res)
         except Exception as err:
             st.error(f"Error: {err}")
     if c3.button("Fix Grammar") and text:
         try:
-            res = llm.invoke([HumanMessage(content=f"Fix grammar:\n\n{text}")])
-            st.write(res.content)
+            res = generate_response(f"Fix grammar:\n\n{text}", api_key)
+            st.write(res)
         except Exception as err:
             st.error(f"Error: {err}")
