@@ -1,11 +1,10 @@
 import streamlit as st
 import os
+from google import genai
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.messages import HumanMessage
 
 st.set_page_config(page_title="AI Email Assistant", page_icon="✉️", layout="wide")
 
@@ -17,6 +16,9 @@ api_key = st.secrets.get("GOOGLE_API_KEY") or st.sidebar.text_input("Enter Googl
 if not api_key:
     st.info("Please enter your Google Gemini API Key in the sidebar or Streamlit secrets to start.")
     st.stop()
+
+# Initialize Google GenAI client
+client = genai.Client(api_key=api_key)
 
 # Safe sample data creation
 def get_or_create_sample_file():
@@ -58,24 +60,13 @@ except Exception as e:
     st.error(f"Error loading RAG: {e}")
     st.stop()
 
-# Function that tries valid Gemini models and prints the exact error if it fails
-def generate_response(prompt_text, key):
-    models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]
-    last_error = None
-    
-    for model_name in models_to_try:
-        try:
-            llm = ChatGoogleGenerativeAI(
-                model=model_name,
-                google_api_key=key,
-                temperature=0.3
-            )
-            return llm.invoke([HumanMessage(content=prompt_text)]).content
-        except Exception as e:
-            last_error = e
-            continue
-            
-    raise Exception(f"{last_error}")
+# Helper function using standard google-genai client
+def generate_email(prompt_text):
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt_text,
+    )
+    return response.text
 
 tab1, tab2 = st.tabs(["🚀 Generate Email", "🛠️ Refine & Edit"])
 
@@ -97,10 +88,10 @@ with tab1:
                     prompt_text = f"""Context:
 {context}
 
-Write a complete email to {recipient} with a '{tone}' tone.
+Write a clear, complete email to {recipient} with a '{tone}' tone.
 Purpose: {purpose}"""
                     
-                    result_text = generate_response(prompt_text, api_key)
+                    result_text = generate_email(prompt_text)
                     st.text_area("Result", value=result_text, height=300)
                 except Exception as err:
                     st.error(f"Gemini API Error: {err}")
@@ -110,19 +101,19 @@ with tab2:
     c1, c2, c3 = st.columns(3)
     if c1.button("Rewrite") and text:
         try:
-            res = generate_response(f"Rewrite cleanly:\n\n{text}", api_key)
+            res = generate_email(f"Rewrite cleanly:\n\n{text}")
             st.write(res)
         except Exception as err:
             st.error(f"Error: {err}")
     if c2.button("Shorten") and text:
         try:
-            res = generate_response(f"Shorten this email:\n\n{text}", api_key)
+            res = generate_email(f"Shorten this email:\n\n{text}")
             st.write(res)
         except Exception as err:
             st.error(f"Error: {err}")
     if c3.button("Fix Grammar") and text:
         try:
-            res = generate_response(f"Fix grammar:\n\n{text}", api_key)
+            res = generate_email(f"Fix grammar:\n\n{text}")
             st.write(res)
         except Exception as err:
             st.error(f"Error: {err}")
