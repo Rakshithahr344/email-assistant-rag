@@ -2,7 +2,8 @@ import streamlit as st
 import os
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 
@@ -41,17 +42,17 @@ Cheers,
 
 sample_filepath = get_or_create_sample_file()
 
-@st.cache_resource
-def init_rag(key, filepath):
+def init_rag(filepath):
     loader = TextLoader(filepath)
     documents = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     docs = text_splitter.split_documents(documents)
-    embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=key)
+    # Local HuggingFace embeddings eliminate all Google API 404/Embedding errors
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     return FAISS.from_documents(docs, embeddings)
 
 try:
-    vectorstore = init_rag(api_key, sample_filepath)
+    vectorstore = init_rag(sample_filepath)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 except Exception as e:
     st.error(f"Error loading RAG: {e}")
