@@ -47,7 +47,7 @@ def init_rag(key, filepath):
     documents = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     docs = text_splitter.split_documents(documents)
-   embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=key)
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=key)
     return FAISS.from_documents(docs, embeddings)
 
 try:
