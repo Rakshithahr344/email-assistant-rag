@@ -5,7 +5,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.prompts import PromptTemplate
+from langchain_core.messages import HumanMessage
 
 st.set_page_config(page_title="AI Email Assistant", page_icon="✉️", layout="wide")
 
@@ -60,7 +60,7 @@ except Exception as e:
 
 # Updated LLM configuration
 llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
+    model="gemini-2.5-flash",
     google_api_key=api_key,
     temperature=0.3
 )
@@ -78,28 +78,39 @@ with tab1:
     with col2:
         if btn and purpose and recipient:
             with st.spinner("Generating..."):
-                docs = retriever.invoke(f"Tone: {tone} Purpose: {purpose}")
-                context = "\n".join([d.page_content for d in docs])
-                
-                # Direct call method avoiding chain input mismatches
-                prompt_text = f"""Context:
+                try:
+                    docs = retriever.invoke(f"Tone: {tone} Purpose: {purpose}")
+                    context = "\n".join([d.page_content for d in docs])
+                    
+                    prompt_text = f"""Context:
 {context}
 
 Write a clear, complete email to {recipient} with a '{tone}' tone.
 Purpose: {purpose}"""
-                
-                res = llm.invoke(prompt_text)
-                st.text_area("Result", value=res.content, height=300)
+                    
+                    res = llm.invoke([HumanMessage(content=prompt_text)])
+                    st.text_area("Result", value=res.content, height=300)
+                except Exception as err:
+                    st.error(f"Gemini API Call Failed: {err}")
 
 with tab2:
     text = st.text_area("Paste Email to Refine")
     c1, c2, c3 = st.columns(3)
     if c1.button("Rewrite") and text:
-        res = llm.invoke(f"Rewrite cleanly:\n\n{text}")
-        st.write(res.content)
+        try:
+            res = llm.invoke([HumanMessage(content=f"Rewrite cleanly:\n\n{text}")])
+            st.write(res.content)
+        except Exception as err:
+            st.error(f"Error: {err}")
     if c2.button("Shorten") and text:
-        res = llm.invoke(f"Shorten this email:\n\n{text}")
-        st.write(res.content)
+        try:
+            res = llm.invoke([HumanMessage(content=f"Shorten this email:\n\n{text}")])
+            st.write(res.content)
+        except Exception as err:
+            st.error(f"Error: {err}")
     if c3.button("Fix Grammar") and text:
-        res = llm.invoke(f"Fix grammar:\n\n{text}")
-        st.write(res.content)
+        try:
+            res = llm.invoke([HumanMessage(content=f"Fix grammar:\n\n{text}")])
+            st.write(res.content)
+        except Exception as err:
+            st.error(f"Error: {err}")
