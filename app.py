@@ -17,10 +17,9 @@ if not api_key:
     st.info("Please enter your Google Gemini API Key in the sidebar or Streamlit secrets to start.")
     st.stop()
 
-# Auto-create data directory and email_examples.txt if missing
-def ensure_sample_data():
-    os.makedirs("data", exist_ok=True)
-    filepath = "data/email_examples.txt"
+# Safe sample data creation
+def get_or_create_sample_file():
+    filepath = "email_examples.txt"
     if not os.path.exists(filepath):
         sample_data = """Subject: Follow-up on Proposal
 Tone: Professional
@@ -38,12 +37,13 @@ Cheers,
 """
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(sample_data)
+    return filepath
 
-ensure_sample_data()
+sample_filepath = get_or_create_sample_file()
 
 @st.cache_resource
-def init_rag(key):
-    loader = TextLoader("data/email_examples.txt")
+def init_rag(key, filepath):
+    loader = TextLoader(filepath)
     documents = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     docs = text_splitter.split_documents(documents)
@@ -51,7 +51,7 @@ def init_rag(key):
     return FAISS.from_documents(docs, embeddings)
 
 try:
-    vectorstore = init_rag(api_key)
+    vectorstore = init_rag(api_key, sample_filepath)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 except Exception as e:
     st.error(f"Error loading RAG: {e}")
