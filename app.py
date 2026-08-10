@@ -5,16 +5,16 @@ from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
-from langchain.chains import LLMChain
 
 st.set_page_config(page_title="AI Email Assistant", page_icon="✉️", layout="wide")
 
 st.markdown("<h1 style='text-align: center; color: #1E88E5;'>✉️ Smart Email Writing Assistant (RAG Enabled)</h1>", unsafe_allow_html=True)
 
-api_key = st.sidebar.text_input("Enter Google Gemini API Key", type="password")
+# Fetch API key from Streamlit secrets or sidebar input
+api_key = st.secrets.get("GOOGLE_API_KEY") or st.sidebar.text_input("Enter Google Gemini API Key", type="password")
 
 if not api_key:
-    st.info("Please enter your Google Gemini API Key in the sidebar to start.")
+    st.info("Please enter your Google Gemini API Key in the sidebar or Streamlit secrets to start.")
     st.stop()
 
 @st.cache_resource
@@ -48,7 +48,7 @@ with tab1:
     with col2:
         if btn and purpose and recipient:
             with st.spinner("Generating..."):
-                docs = retriever.get_relevant_documents(f"Tone: {tone} Purpose: {purpose}")
+                docs = retriever.invoke(f"Tone: {tone} Purpose: {purpose}")
                 context = "\n".join([d.page_content for d in docs])
                 template = """
                 Context:
@@ -58,16 +58,21 @@ with tab1:
                 Purpose: {purpose}
                 """
                 prompt = PromptTemplate(template=template, input_variables=["context", "recipient", "tone", "purpose"])
-                chain = LLMChain(llm=llm, prompt=prompt)
-                res = chain.run(context=context, recipient=recipient, tone=tone, purpose=purpose)
-                st.text_area("Result", value=res, height=250)
+                
+                # LCEL Pipe Chain syntax
+                chain = prompt | llm
+                res = chain.invoke({"context": context, "recipient": recipient, "tone": tone, "purpose": purpose})
+                st.text_area("Result", value=res.content, height=250)
 
 with tab2:
     text = st.text_area("Paste Email to Refine")
     c1, c2, c3 = st.columns(3)
     if c1.button("Rewrite") and text:
-        st.write(llm.predict(f"Rewrite cleanly:\n\n{text}"))
+        res = llm.invoke(f"Rewrite cleanly:\n\n{text}")
+        st.write(res.content)
     if c2.button("Shorten") and text:
-        st.write(llm.predict(f"Shorten this email:\n\n{text}"))
+        res = llm.invoke(f"Shorten this email:\n\n{text}")
+        st.write(res.content)
     if c3.button("Fix Grammar") and text:
-        st.write(llm.predict(f"Fix grammar:\n\n{text}"))
+        res = llm.invoke(f"Fix grammar:\n\n{text}")
+        st.write(res.content)
