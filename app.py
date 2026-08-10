@@ -17,6 +17,30 @@ if not api_key:
     st.info("Please enter your Google Gemini API Key in the sidebar or Streamlit secrets to start.")
     st.stop()
 
+# Auto-create data directory and email_examples.txt if missing
+def ensure_sample_data():
+    os.makedirs("data", exist_ok=True)
+    filepath = "data/email_examples.txt"
+    if not os.path.exists(filepath):
+        sample_data = """Subject: Follow-up on Proposal
+Tone: Professional
+Dear [Name],
+I hope this email finds you well. I am following up on our previous discussion regarding the project proposal. Please let me know if you have any questions or require additional details.
+Best regards,
+[Sender]
+
+Subject: Quick Question
+Tone: Friendly
+Hi [Name],
+Hope you're having a great week! Just wanted to quickly check in regarding the update. Let me know when you have a moment to chat.
+Cheers,
+[Sender]
+"""
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(sample_data)
+
+ensure_sample_data()
+
 @st.cache_resource
 def init_rag(key):
     loader = TextLoader("data/email_examples.txt")
@@ -59,7 +83,6 @@ with tab1:
                 """
                 prompt = PromptTemplate(template=template, input_variables=["context", "recipient", "tone", "purpose"])
                 
-                # LCEL Pipe Chain syntax
                 chain = prompt | llm
                 res = chain.invoke({"context": context, "recipient": recipient, "tone": tone, "purpose": purpose})
                 st.text_area("Result", value=res.content, height=250)
