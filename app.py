@@ -42,12 +42,12 @@ Cheers,
 
 sample_filepath = get_or_create_sample_file()
 
+@st.cache_resource
 def init_rag(filepath):
     loader = TextLoader(filepath)
     documents = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     docs = text_splitter.split_documents(documents)
-    # Local HuggingFace embeddings eliminate all Google API 404/Embedding errors
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     return FAISS.from_documents(docs, embeddings)
 
@@ -58,7 +58,12 @@ except Exception as e:
     st.error(f"Error loading RAG: {e}")
     st.stop()
 
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key, temperature=0.3)
+# Updated LLM configuration
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",
+    google_api_key=api_key,
+    temperature=0.3
+)
 
 tab1, tab2 = st.tabs(["🚀 Generate Email", "🛠️ Refine & Edit"])
 
@@ -75,18 +80,16 @@ with tab1:
             with st.spinner("Generating..."):
                 docs = retriever.invoke(f"Tone: {tone} Purpose: {purpose}")
                 context = "\n".join([d.page_content for d in docs])
-                template = """
-                Context:
-                {context}
                 
-                Write an email to {recipient} with tone '{tone}'.
-                Purpose: {purpose}
-                """
-                prompt = PromptTemplate(template=template, input_variables=["context", "recipient", "tone", "purpose"])
+                # Direct call method avoiding chain input mismatches
+                prompt_text = f"""Context:
+{context}
+
+Write a clear, complete email to {recipient} with a '{tone}' tone.
+Purpose: {purpose}"""
                 
-                chain = prompt | llm
-                res = chain.invoke({"context": context, "recipient": recipient, "tone": tone, "purpose": purpose})
-                st.text_area("Result", value=res.content, height=250)
+                res = llm.invoke(prompt_text)
+                st.text_area("Result", value=res.content, height=300)
 
 with tab2:
     text = st.text_area("Paste Email to Refine")
